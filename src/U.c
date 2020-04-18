@@ -23,18 +23,26 @@ bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]) {
         return false;
     }
 
+    int definedArgs = 0;
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-t") == 0)  {
             if (!checkIncrement(i, argc))
                 return false;
             if(sscanf(argv[++i], "%d", &arguments->durationSeconds) <= 0)
                 return false;
+            definedArgs++;
         }      
-        else 
+        else if (strstr(argv[i], "-") == NULL && strstr(argv[i], ".") == NULL) {
             strcpy(arguments->fifoName, argv[i]);
+            definedArgs++;
+        }    
     }
 
     if(!checkDurationSeconds(arguments->durationSeconds))
+        return false;
+
+    if(definedArgs != 2)
         return false;
 
     return true;
@@ -49,6 +57,7 @@ int main(int argc, char* argv[]) {
     
     clientArgs arguments;
     initializeArgumentsStruct(&arguments);
+    
     if(!checkClientArguments(&arguments, argc, argv)) {
         fprintf(stderr, "Error capturing Arguments!\n");
         exit(1);
