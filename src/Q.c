@@ -3,6 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/file.h> 
 
 
 
@@ -65,6 +70,34 @@ bool checkServerArguments(ServerArguments *arguments, int argc, char *argv[]) {
     return true;
 }
 
+void generateFifoName(char * fifoName) {
+    char tempFifoName[FIFONAME_MAX_LEN];
+    strcpy(tempFifoName, fifoName);
+    sprintf(fifoName, "/tmp/%s", tempFifoName);
+}
+
+bool createPublicFifo(ServerArguments *arguments) {
+
+    generateFifoName(arguments->fifoname);
+    
+    if (mkfifo(arguments->fifoname, 0660) < 0) {
+        if (errno == EEXIST)
+            fprintf(stderr, "FIFO '%s' already exists\n", arguments->fifoname);
+        else
+            fprintf(stderr, "Can't create FIFO\n");
+        return false;
+    }
+    else 
+        printf("FIFO '%s' sucessfully created\n", arguments->fifoname);
+    
+    return true;
+}
+
+void freeMemory(ServerArguments * arguments) {
+    unlink(arguments->fifoname);
+    free(arguments->fifoname);
+}
+
 int main(int argc, char* argv[]) {
     
     ServerArguments serverArguments;
@@ -75,11 +108,13 @@ int main(int argc, char* argv[]) {
         exit(2);
     }
 
-    printf("Num Seconds: %d\n", serverArguments.numSeconds);
-    printf("Num Places: %d\n", serverArguments.numPlaces);
-    printf("Num Threads: %d\n", serverArguments.numThreads);
-    printf("Fifoname: %s\n", serverArguments.fifoname);
+    if (!createPublicFifo(&serverArguments)) {
+        fprintf(stderr, "Error while creating fifo\n");
+        exit(3);
+    }
+    else
+        printf("HELLO ITS WORKING!\n");
     
-    
+    freeMemory(&serverArguments);
     exit(0);
 }
