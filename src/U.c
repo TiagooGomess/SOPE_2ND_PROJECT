@@ -1,18 +1,19 @@
 #include "U.h"
+#include "macros.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-void initializeArguments(clientArgs * arguments) {
+void initializeArgumentsStruct(clientArgs * arguments) {
     arguments->durationSeconds = -1;
-    arguments->fifoName = (char * ) malloc(MAX_FIFO_NAME);
+    arguments->fifoName = (char * ) malloc(FIFONAME_MAX_LEN);
 }
 
 bool checkDurationSeconds(int durationSeconds) {
     return (durationSeconds >= 0);
 }
 
-bool checkArguments(clientArgs * arguments, int argc, char *argv[]) {
+bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]) {
 
     if(argc != 4) {
         return false;
@@ -41,8 +42,8 @@ void testArgumentsReceived(clientArgs * arguments) {
 int main(int argc, char* argv[]) {
     
     clientArgs arguments;
-    initializeArguments(&arguments);
-    if(!checkArguments(&arguments, argc, argv)) {
+    initializeArgumentsStruct(&arguments);
+    if(!checkClientArguments(&arguments, argc, argv)) {
         fprintf(stderr, "Error capturing Arguments!\n");
         exit(1);
     }

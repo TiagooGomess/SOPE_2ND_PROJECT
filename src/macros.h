@@ -1,6 +1,5 @@
 #pragma once
 
-#define MAX_FIFO_NAME 128
-
+#define FIFONAME_MAX_LEN 128
 
 

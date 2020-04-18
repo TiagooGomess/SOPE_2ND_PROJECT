@@ -1,6 +1,5 @@
 #pragma once
 
-#include "macros.h"
 #include <stdbool.h>
 
 typedef struct {
@@ -8,8 +7,8 @@ typedef struct {
     char * fifoName;
 } clientArgs;
 
-void initializeArguments(clientArgs * arguments);
+void initializeArgumentsStruct(clientArgs * arguments);
 
-bool checkArguments(clientArgs * arguments, int argc, char *argv[]);
+bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]);
 
 void testArguments(clientArgs * arguments);

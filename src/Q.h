@@ -1,6 +1,13 @@
 #pragma once
-
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
+
+typedef struct {
+    int numSeconds;
+    int numPlaces;
+    int numThreads;
+    char* fifoname;
+} ServerArguments;
+
+void initializeArgumentsStruct(ServerArguments *serverArguments);
+
+bool checkServerArguments(ServerArguments*  arguments, int argc, char* argv[]);
