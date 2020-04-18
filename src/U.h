@@ -5,10 +5,10 @@
 typedef struct {
     int durationSeconds;
     char * fifoName;
-} clientArgs;
+} ClientArgs;
 
-void initializeArgumentsStruct(clientArgs * arguments);
+void initializeArgumentsStruct(ClientArgs * arguments);
 
-bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]);
+bool checkClientArguments(ClientArgs * arguments, int argc, char *argv[]);
 
-void testArguments(clientArgs * arguments);
+void testArguments(ClientArgs * arguments);

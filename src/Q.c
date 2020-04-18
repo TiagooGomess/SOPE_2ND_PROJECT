@@ -79,7 +79,7 @@ void generateFifoName(char * fifoName) {
 bool createPublicFifo(ServerArguments *arguments) {
 
     generateFifoName(arguments->fifoname);
-    
+
     if (mkfifo(arguments->fifoname, 0660) < 0) {
         if (errno == EEXIST)
             fprintf(stderr, "FIFO '%s' already exists\n", arguments->fifoname);
@@ -94,8 +94,9 @@ bool createPublicFifo(ServerArguments *arguments) {
 }
 
 void freeMemory(ServerArguments * arguments) {
-    unlink(arguments->fifoname);
+    // unlink(arguments->fifoname);
     free(arguments->fifoname);
+    
 }
 
 int main(int argc, char* argv[]) {
@@ -112,9 +113,11 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Error while creating fifo\n");
         exit(3);
     }
-    else
-        printf("HELLO ITS WORKING!\n");
     
+    int fifo_fd;
+    fifo_fd = open(serverArguments.fifoname, O_RDONLY);
+    printf("%d\n", fifo_fd);
+
     freeMemory(&serverArguments);
     exit(0);
 }

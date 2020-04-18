@@ -3,8 +3,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/file.h> 
+#include <unistd.h>
 
-void initializeArgumentsStruct(clientArgs * arguments) {
+void initializeArgumentsStruct(ClientArgs * arguments) {
     arguments->durationSeconds = -1;
     arguments->fifoName = (char * ) malloc(FIFONAME_MAX_LEN);
 }
@@ -17,7 +21,7 @@ bool checkIncrement(int i, int argc) {
     return (i + 1) < argc;
 }
 
-bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]) {
+bool checkClientArguments(ClientArgs * arguments, int argc, char *argv[]) {
 
     if(argc != 4) {
         return false;
@@ -36,7 +40,7 @@ bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]) {
         else if (strstr(argv[i], "-") == NULL && strstr(argv[i], ".") == NULL) {
             strcpy(arguments->fifoName, argv[i]);
             definedArgs++;
-        }    
+        }
     }
 
     if(!checkDurationSeconds(arguments->durationSeconds))
@@ -48,23 +52,39 @@ bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]) {
     return true;
 }
 
-void testArgumentsReceived(clientArgs * arguments) {
-    printf("Duration: %d\n", arguments->durationSeconds);
-    printf("Fifo Name: %s\n", arguments->fifoName);
+void generateFifoName(char * fifoName) {
+    char tempFifoName[FIFONAME_MAX_LEN];
+    strcpy(tempFifoName, fifoName);
+    sprintf(fifoName, "/tmp/%s", tempFifoName);
 }
 
 int main(int argc, char* argv[]) {
     
-    clientArgs arguments;
+    ClientArgs arguments;
     initializeArgumentsStruct(&arguments);
-    
+
     if(!checkClientArguments(&arguments, argc, argv)) {
         fprintf(stderr, "Error capturing Arguments!\n");
         exit(1);
     }
     
-    // Test
-    testArgumentsReceived(&arguments);
+    int fifo_fd;
+    generateFifoName(arguments.fifoName);
+
+    printf("Opening client...\n");
+    printf("%s\n", arguments.fifoName);
     
+    do {
+        fifo_fd = open(arguments.fifoName, O_WRONLY);
+        
+        if(fifo_fd == -1)
+            sleep(1);
+
+    } while(fifo_fd == -1);
+        
+    printf("%d\n", fifo_fd);
+
+    printf("Working hard...\n");
+
     exit(0);
 }
