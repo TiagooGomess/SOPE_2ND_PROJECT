@@ -13,6 +13,10 @@ bool checkDurationSeconds(int durationSeconds) {
     return (durationSeconds >= 0);
 }
 
+bool checkIncrement(int i, int argc) {
+    return (i + 1) < argc;
+}
+
 bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]) {
 
     if(argc != 4) {
@@ -21,6 +25,8 @@ bool checkClientArguments(clientArgs * arguments, int argc, char *argv[]) {
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-t") == 0)  {
+            if (!checkIncrement(i, argc))
+                return false;
             if(sscanf(argv[++i], "%d", &arguments->durationSeconds) <= 0)
                 return false;
         }      
