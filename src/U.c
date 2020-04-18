@@ -4,8 +4,12 @@
 #include <string.h>
 
 void initializeArguments(clientArgs * arguments) {
-    arguments->durationSeconds = 0;
+    arguments->durationSeconds = -1;
     arguments->fifoName = (char * ) malloc(MAX_FIFO_NAME);
+}
+
+bool checkDurationSeconds(int durationSeconds) {
+    return (durationSeconds >= 0);
 }
 
 bool checkArguments(clientArgs * arguments, int argc, char *argv[]) {
@@ -16,12 +20,16 @@ bool checkArguments(clientArgs * arguments, int argc, char *argv[]) {
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-t") == 0)  {
-            if(sscanf(argv[++i], "%d", &arguments->durationSeconds) == -1)
+            if(sscanf(argv[++i], "%d", &arguments->durationSeconds) <= 0)
                 return false;
         }      
         else 
             strcpy(arguments->fifoName, argv[i]);
     }
+
+    if(!checkDurationSeconds(arguments->durationSeconds))
+        return false;
+
     return true;
 }
 
