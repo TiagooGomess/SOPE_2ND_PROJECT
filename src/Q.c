@@ -52,7 +52,7 @@ bool checkServerArguments(ServerArguments *arguments, int argc, char *argv[]) {
             definedArgs++;
             continue;
         }     
-        else if (strstr(argv[i], "-") == NULL && strstr(argv[i], ".") == NULL) {
+        else if (strstr(argv[i], "-") == NULL) {
             definedArgs++;
             if(definedArgs > 2)
                 return false;
