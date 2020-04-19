@@ -8,6 +8,7 @@
 #include <sys/file.h> 
 #include <time.h>
 #include <limits.h>
+#include <errno.h>
 
 void initializeArgumentsStruct(ClientArgs * arguments) {
     arguments->durationSeconds = -1;
@@ -53,20 +54,21 @@ bool checkClientArguments(ClientArgs * arguments, int argc, char *argv[]) {
     return true;
 }
 
-void generateFifoName(char * fifoName) {
+void generatePublicFifoName(char * fifoName) {
     char tempFifoName[FIFONAME_MAX_LEN];
     strcpy(tempFifoName, fifoName);
     sprintf(fifoName, "/tmp/%s", tempFifoName);
 }
 
-void freeMemory(ClientArgs * arguments) {
+void freeMemory(ClientArgs * arguments, int publicFifoFd) {
+    close(publicFifoFd);
     free(arguments->fifoName);   
 }
 
 bool timeHasPassed(int durationSeconds, time_t begTime) {
     time_t endTime;
     time(&endTime);
-    // printf("%f\n", difftime(endTime, begTime));
+    printf("%f\n", difftime(endTime, begTime));
     return difftime(endTime, begTime) >= durationSeconds; // in seconds 
 }
 
@@ -94,24 +96,71 @@ int openPublicFifo(ClientArgs * cliArgs) {
     return fifo_fd;
 }
 
+void generatePrivateFifoName(FIFORequest * fArgs, char * toReceive) {
+    sprintf(toReceive, "/tmp/%d.%ld", fArgs->pid, fArgs->tid);
+}
+
+bool createPrivateFifo(FIFORequest * fArgs, char * privateFifoName) {
+
+    if (mkfifo(privateFifoName, 0660) < 0) {
+        if (errno == EEXIST)
+            fprintf(stderr, "FIFO '%s' already exists\n", privateFifoName);
+        else
+            fprintf(stderr, "Can't create FIFO\n");
+        return false;
+    }
+    else 
+        printf("FIFO '%s' sucessfully created\n", privateFifoName);
+    
+    return true;
+}
+
 bool sendRequest(FIFORequest * fArgs, int publicFifoFd) {
     return write(publicFifoFd, fArgs, sizeof(FIFORequest)) > 0;
 }
 
+bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
+    return read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0;
+}
+
 void * requestServer(void * args) {
-    void * result = malloc(sizeof(FIFORequest));
-    FIFORequest * fRequest = (FIFORequest *) result;
+    FIFORequest * fRequest = (FIFORequest *) malloc(sizeof(FIFORequest));  // ALready Freed!
     threadArgs * tArgs = (threadArgs *) args;
 
     fullFillRequest(fRequest, tArgs->seqNum);    
+
+    /* Create Private FIFO */
+    char privateFifoName[FIFONAME_MAX_LEN];
+    generatePrivateFifoName(fRequest, privateFifoName);
+
+    if(createPrivateFifo(fRequest, privateFifoName)) {
+        printf("Private FIFO Successfully created!\n");
+    }   
+    
+    // Send Message...
     if(sendRequest(fRequest, tArgs->publicFifoFd)) {
         printf("Client write successful!\n");
     }
 
+    int privateFifoFd = open(privateFifoName, O_RDONLY);
+    // Receive message...
+
+    if(receiveMessage(fRequest, privateFifoFd)) {
+        printf("SeqNum: %d\n", fRequest->seqNum);
+        printf("PID: %d\n", fRequest->pid);
+        printf("TID: %ld\n", fRequest->tid);
+        printf("Duration: %d\n", fRequest->durationSeconds);
+        printf("Place: %d\n", fRequest->place);
+    }
+
+    close(privateFifoFd);
+    unlink(privateFifoName);
+    free(fRequest);
+
     return NULL;
 }
 
-void launchRequests(ClientArgs* cliArgs, time_t begTime) {
+int launchRequests(ClientArgs* cliArgs, time_t begTime) {
     int fifoFd = openPublicFifo(cliArgs);
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
     threadArgs tArgs[MAX_NUM_THREADS];
@@ -121,15 +170,16 @@ void launchRequests(ClientArgs* cliArgs, time_t begTime) {
     {
         tArgs[tCounter].seqNum = tCounter + 1;
         tArgs[tCounter].publicFifoFd = fifoFd;
-        printf("ANOTHER\n");
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(100 * 1000); // Sleep for 100 ms between threads...
+        usleep(500 * 1000); // Sleep for 100 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
-        pthread_join(threads[tInd], NULL); // We don't really need to wait for threads, it just because of stdout.
+        pthread_join(threads[tInd], NULL);
     }
+
+    return fifoFd;
 }
 
 int main(int argc, char* argv[]) {
@@ -145,12 +195,12 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    generateFifoName(arguments.fifoName);
+    generatePublicFifoName(arguments.fifoName);
 
     // Start request to Server
-    launchRequests(&arguments, begTime);
+    int publicFifoFd = launchRequests(&arguments, begTime);
 
-    freeMemory(&arguments);
+    freeMemory(&arguments, publicFifoFd);
 
     exit(0);
 }

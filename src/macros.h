@@ -4,6 +4,7 @@
 
 #define FIFONAME_MAX_LEN 128
 #define MAX_NUM_THREADS 99999 // Can't be a much larger number, otherwise the program blows up!
+#define ERROR -1
 
 typedef struct {
     int seqNum;
