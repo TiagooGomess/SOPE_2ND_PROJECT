@@ -9,8 +9,6 @@
 #include <sys/stat.h>
 #include <sys/file.h> 
 
-
-
 void initializeArgumentsStruct(ServerArguments *serverArguments) {
     serverArguments->numSeconds = -1;
     serverArguments->numPlaces = 0;
@@ -99,9 +97,33 @@ void freeMemory(ServerArguments * arguments) {
     
 }
 
+bool timeHasPassed(int durationSeconds, time_t begTime) {
+    time_t endTime;
+    time(&endTime);
+    // printf("%f\n", difftime(endTime, begTime));
+    return difftime(endTime, begTime) >= durationSeconds; // in seconds 
+}
+
+// Just a simplified version...
+void receiveRequest(int publicFifoFd, ServerArguments* serverArguments, time_t begTime) {
+    FIFORequest fRequest;
+
+    while(!timeHasPassed(serverArguments->numSeconds, begTime)) {
+        read(publicFifoFd, &fRequest, sizeof(fRequest)); // NOt making error verification...
+        printf("SeqNum: %d\n", fRequest.seqNum);
+        printf("PID: %d\n", fRequest.pid);
+        printf("TID: %ld\n", fRequest.tid);
+        printf("Duration: %d\n", fRequest.durationSeconds);
+        printf("Place: %d\n", fRequest.place);
+    }
+}
+
 int main(int argc, char* argv[]) {
     
     ServerArguments serverArguments;
+    time_t begTime;
+    time(&begTime);
+
     initializeArgumentsStruct(&serverArguments);
 
     if (!checkServerArguments(&serverArguments, argc, argv)) {
@@ -110,13 +132,15 @@ int main(int argc, char* argv[]) {
     }
 
     if (!createPublicFifo(&serverArguments)) {
-        fprintf(stderr, "Error while creating fifo\n");
+        fprintf(stderr, "Error while creating FIFO\n");
         exit(3);
     }
     
-    int fifo_fd;
-    fifo_fd = open(serverArguments.fifoname, O_RDONLY);
-    printf("%d\n", fifo_fd);
+    int publicFifoFd = open(serverArguments.fifoname, O_RDONLY);
+   
+    receiveRequest(publicFifoFd, &serverArguments, begTime);
+
+    sleep(5);
 
     freeMemory(&serverArguments);
     exit(0);

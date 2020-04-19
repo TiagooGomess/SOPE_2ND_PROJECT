@@ -10,7 +10,7 @@ DEPS =
 Q: Q.o 
 	$(CC) -o Q Q.o -lrt -lpthread
 U: U.o
-	$(CC) -o U U.o
+	$(CC) -o U U.o -lrt -lpthread
 
 
 .PHONY: clean
