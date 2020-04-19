@@ -38,7 +38,7 @@ bool checkClientArguments(ClientArgs * arguments, int argc, char *argv[]) {
                 return false;
             definedArgs++;
         }      
-        else if (strstr(argv[i], "-") == NULL && strstr(argv[i], ".") == NULL) {
+        else if (strstr(argv[i], "-") == NULL) {
             strcpy(arguments->fifoName, argv[i]);
             definedArgs++;
         }
