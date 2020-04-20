@@ -92,8 +92,6 @@ bool createPublicFifo(ServerArguments *arguments) {
 }
 
 void freeMemory(ServerArguments * arguments, int publicFifoFd) {
-    // unlink(arguments->fifoname);
-    close(publicFifoFd);
     free(arguments->fifoname);
     
 }
@@ -114,14 +112,18 @@ void generatePrivateFifoName(FIFORequest * fArgs, char * toReceive) {
 }
 
 bool sendRequest(FIFORequest * fRequest, int privateFifoFd) {
-    return write(privateFifoFd, fRequest, sizeof(fRequest)) > 0;
+    return write(privateFifoFd, fRequest, sizeof(FIFORequest)) > 0;
 }
 
-void fullFillMessage(FIFORequest * fRequest) {
+void fullFillMessage(FIFORequest * fRequest, bool afterClose) {
     fRequest->pid = getpid();
     fRequest->tid = pthread_self();
     fRequest->durationSeconds = -1;
-    fRequest->place = INT_MAX; // By creating a buffer it results in a critic section (need to use mutexes) - doubtful if should be used in stage 1.
+    
+    if(afterClose)
+        fRequest->place = -1;
+    else
+        fRequest->place = INT_MAX; // By creating a buffer it results in a critic section (need to use mutexes) - doubtful if should be used in stage 1.
 }
 
 void * requestThread(void * args) {
@@ -133,21 +135,51 @@ void * requestThread(void * args) {
     printf("Duration: %d\n", fRequest->durationSeconds);
     printf("Place: %d\n", fRequest->place);
 
+    
     usleep(fRequest->durationSeconds * 1000); // Sleep specified number of ms... Time of bathroom.
 
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
+    fullFillMessage(fRequest, false);
+
     int privateFifoFd = open(privateFifoName, O_WRONLY);
 
-    fullFillMessage(fRequest);
-    
-    sendRequest(fRequest, privateFifoFd);
+    if(!sendRequest(fRequest, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
+    {
+        printf("GAVUP...\n");
+    }
 
     return NULL;
 
 }
 
-void receiveRequest(int publicFifoFd, ServerArguments* serverArguments, time_t begTime) {
+// Requests out of time... 2LATE (could be optimized...)
+void * afterClose(void * args) {
+    printf("2LATE...\n");
+    FIFORequest * fRequest = (FIFORequest *) args;
+
+    printf("SeqNum: %d\n", fRequest->seqNum);
+    printf("PID: %d\n", fRequest->pid);
+    printf("TID: %ld\n", fRequest->tid);
+    printf("Duration: %d\n", fRequest->durationSeconds);
+    printf("Place: %d\n", fRequest->place);
+
+
+    char privateFifoName[FIFONAME_MAX_LEN];
+    generatePrivateFifoName(fRequest, privateFifoName);
+    int privateFifoFd = open(privateFifoName, O_WRONLY);
+
+    fullFillMessage(fRequest, true);
+
+    sendRequest(fRequest, privateFifoFd);
+
+    return NULL;   
+}
+
+void receiveRequest(int publicFifoFd, ServerArguments* serverArguments) {
+    time_t begTime;
+    time(&begTime);
+
     FIFORequest fRequests[MAX_NUM_THREADS];
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
     int tCounter = 0;
@@ -156,22 +188,33 @@ void receiveRequest(int publicFifoFd, ServerArguments* serverArguments, time_t b
         
         if(receiveMessage(&fRequests[tCounter], publicFifoFd)) {
             printf("Server message received!\n");
-            pthread_create(&threads[tCounter], NULL, requestThread, &fRequests[tCounter]);
+
+            if(!timeHasPassed(serverArguments->numSeconds, begTime))
+                pthread_create(&threads[tCounter], NULL, requestThread, &fRequests[tCounter]);
+            else
+                pthread_create(&threads[tCounter], NULL, afterClose, &fRequests[tCounter]);
+
             tCounter++;
         }    
     }  
 
-    // Still need to verify pending requests!
+    close(publicFifoFd);
+    unlink(serverArguments->fifoname);
+
     for(int tInd = 0; tInd < tCounter; tInd++) { 
         pthread_join(threads[tInd], NULL); // We don't really need to wait for threads, it just because of stdout.
     }
+
+    /*// Verify pending requests after bathroom closes!
+    while(receiveMessage(&fRequests[tCounter], publicFifoFd)) {
+        printf("Server message received!\n");
+        tCounter++;
+    }*/  
 }
 
 int main(int argc, char* argv[]) {
     
     ServerArguments serverArguments;
-    time_t begTime;
-    time(&begTime);
 
     initializeArgumentsStruct(&serverArguments);
 
@@ -188,10 +231,9 @@ int main(int argc, char* argv[]) {
     
     int publicFifoFd = open(serverArguments.fifoname, O_RDONLY);
 
-    receiveRequest(publicFifoFd, &serverArguments, begTime);
-
-    sleep(5);
+    
+    receiveRequest(publicFifoFd, &serverArguments);
 
     freeMemory(&serverArguments, publicFifoFd);
-    exit(0);
+    pthread_exit(NULL);
 }

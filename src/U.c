@@ -137,31 +137,39 @@ void * requestServer(void * args) {
         printf("Private FIFO Successfully created!\n");
     }   
     
-    // Send Message...
+    // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
     if(sendRequest(fRequest, tArgs->publicFifoFd)) {
         printf("Client write successful!\n");
     }
 
     int privateFifoFd = open(privateFifoName, O_RDONLY);
-    // Receive message...
+    
+    // Need to verify time... In order to see if !timeHasPassed. If so, then it closes privateFIFOS. Can make a do-while cicle (with NON-BLOCK -> use fcntl!)
 
+    // Receive message...   
     if(receiveMessage(fRequest, privateFifoFd)) {
         printf("SeqNum: %d\n", fRequest->seqNum);
         printf("PID: %d\n", fRequest->pid);
         printf("TID: %ld\n", fRequest->tid);
         printf("Duration: %d\n", fRequest->durationSeconds);
         printf("Place: %d\n", fRequest->place);
+
+        if(fRequest->place == -1) {
+            printf("CLOSD...\n");
+        }   
     }
 
     close(privateFifoFd);
     unlink(privateFifoName);
     free(fRequest);
-
+    
     return NULL;
 }
 
-int launchRequests(ClientArgs* cliArgs, time_t begTime) {
+int launchRequests(ClientArgs* cliArgs) {
     int fifoFd = openPublicFifo(cliArgs);
+    time_t begTime;
+    time(&begTime);
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
     threadArgs tArgs[MAX_NUM_THREADS];
     int tCounter = 0;
@@ -172,7 +180,7 @@ int launchRequests(ClientArgs* cliArgs, time_t begTime) {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(500 * 1000); // Sleep for 100 ms between threads...
+        usleep(250 * 1000); // Sleep for 250 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
@@ -185,8 +193,6 @@ int launchRequests(ClientArgs* cliArgs, time_t begTime) {
 int main(int argc, char* argv[]) {
     
     ClientArgs arguments;
-    time_t begTime;
-    time(&begTime);
 
     initializeArgumentsStruct(&arguments);
 
@@ -198,9 +204,9 @@ int main(int argc, char* argv[]) {
     generatePublicFifoName(arguments.fifoName);
 
     // Start request to Server
-    int publicFifoFd = launchRequests(&arguments, begTime);
+    int publicFifoFd = launchRequests(&arguments);
 
     freeMemory(&arguments, publicFifoFd);
 
-    exit(0);
+    pthread_exit(NULL);
 }
