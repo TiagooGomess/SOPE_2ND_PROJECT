@@ -11,9 +11,6 @@
 #include <errno.h>
 #include <signal.h>
 
-ClientArgs arguments;
-time_t begTime;
-
 void initializeArgumentsStruct(ClientArgs * arguments) {
     arguments->durationSeconds = -1;
     arguments->fifoName = (char * ) malloc(FIFONAME_MAX_LEN);
@@ -191,6 +188,7 @@ void * requestServer(void * args) {
 }
 
 int launchRequests(ClientArgs* cliArgs) {
+    time_t begTime;
     int fifoFd = openPublicFifo(cliArgs);
     time(&begTime);
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
@@ -226,6 +224,7 @@ void installSIGHandlers() {
 
 int main(int argc, char* argv[]) {
     installSIGHandlers();
+    ClientArgs arguments;
     
     initializeArgumentsStruct(&arguments);
 
