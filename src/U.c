@@ -9,6 +9,10 @@
 #include <time.h>
 #include <limits.h>
 #include <errno.h>
+#include <signal.h>
+
+ClientArgs arguments;
+time_t begTime;
 
 void initializeArgumentsStruct(ClientArgs * arguments) {
     arguments->durationSeconds = -1;
@@ -120,7 +124,16 @@ bool sendRequest(FIFORequest * fArgs, int publicFifoFd) {
 }
 
 bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
-    return read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0;
+    int flags;
+
+    int prevFlags = fcntl(publicFifoFd, F_GETFL,0); // Enable O_NON_BLOCK
+    flags = prevFlags | O_NONBLOCK;
+    fcntl(publicFifoFd, F_SETFL, flags);
+
+    bool readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0;
+
+    fcntl(publicFifoFd, F_SETFL, prevFlags); // Restore O_BLOCK
+    return readSuccessful;
 }
 
 void * requestServer(void * args) {
@@ -135,18 +148,26 @@ void * requestServer(void * args) {
 
     if(createPrivateFifo(fRequest, privateFifoName)) {
         printf("Private FIFO Successfully created!\n");
-    }   
-    
+    }  
+
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
     if(sendRequest(fRequest, tArgs->publicFifoFd)) {
         printf("Client write successful!\n");
+    }
+    else {
+        printf("FAILD\n...");
+        unlink(privateFifoName);
+        free(fRequest);
+        return NULL;
     }
 
     int privateFifoFd = open(privateFifoName, O_RDONLY);
     
     // Need to verify time... In order to see if !timeHasPassed. If so, then it closes privateFIFOS. Can make a do-while cicle (with NON-BLOCK -> use fcntl!)
 
+    
     // Receive message...   
+
     if(receiveMessage(fRequest, privateFifoFd)) {
         printf("SeqNum: %d\n", fRequest->seqNum);
         printf("PID: %d\n", fRequest->pid);
@@ -158,6 +179,9 @@ void * requestServer(void * args) {
             printf("CLOSD...\n");
         }   
     }
+    else {
+        printf("FAILD2...%ld\n", pthread_self());
+    }
 
     close(privateFifoFd);
     unlink(privateFifoName);
@@ -168,7 +192,6 @@ void * requestServer(void * args) {
 
 int launchRequests(ClientArgs* cliArgs) {
     int fifoFd = openPublicFifo(cliArgs);
-    time_t begTime;
     time(&begTime);
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
     threadArgs tArgs[MAX_NUM_THREADS];
@@ -180,7 +203,7 @@ int launchRequests(ClientArgs* cliArgs) {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(250 * 1000); // Sleep for 250 ms between threads...
+        usleep(150 * 1000); // Sleep for 150 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
@@ -190,10 +213,20 @@ int launchRequests(ClientArgs* cliArgs) {
     return fifoFd;
 }
 
-int main(int argc, char* argv[]) {
-    
-    ClientArgs arguments;
+void installSIGHandlers() {
+    struct sigaction action;
 
+    action.sa_handler = SIG_IGN;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+
+    sigaction(SIGPIPE,&action, NULL);
+     
+}
+
+int main(int argc, char* argv[]) {
+    installSIGHandlers();
+    
     initializeArgumentsStruct(&arguments);
 
     if(!checkClientArguments(&arguments, argc, argv)) {

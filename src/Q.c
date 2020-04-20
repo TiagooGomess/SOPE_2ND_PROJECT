@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/file.h> 
 #include <limits.h>
+#include <signal.h>
 
 void initializeArgumentsStruct(ServerArguments *serverArguments) {
     serverArguments->numSeconds = -1;
@@ -146,7 +147,7 @@ void * requestThread(void * args) {
 
     if(!sendRequest(fRequest, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
     {
-        printf("GAVUP...\n");
+        printf("GAVUP... %ld\n", pthread_self());
     }
 
     return NULL;
@@ -155,7 +156,7 @@ void * requestThread(void * args) {
 
 // Requests out of time... 2LATE (could be optimized...)
 void * afterClose(void * args) {
-    printf("2LATE...\n");
+    printf("------2LATE-------\n");
     FIFORequest * fRequest = (FIFORequest *) args;
 
     printf("SeqNum: %d\n", fRequest->seqNum);
@@ -204,16 +205,22 @@ void receiveRequest(int publicFifoFd, ServerArguments* serverArguments) {
     for(int tInd = 0; tInd < tCounter; tInd++) { 
         pthread_join(threads[tInd], NULL); // We don't really need to wait for threads, it just because of stdout.
     }
+}
 
-    /*// Verify pending requests after bathroom closes!
-    while(receiveMessage(&fRequests[tCounter], publicFifoFd)) {
-        printf("Server message received!\n");
-        tCounter++;
-    }*/  
+void installSIGHandlers() {
+    struct sigaction action;
+
+    action.sa_handler = SIG_IGN;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+
+    sigaction(SIGPIPE,&action, NULL);
+     
 }
 
 int main(int argc, char* argv[]) {
     
+    installSIGHandlers();
     ServerArguments serverArguments;
 
     initializeArgumentsStruct(&serverArguments);
