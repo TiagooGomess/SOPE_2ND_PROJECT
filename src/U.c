@@ -11,6 +11,10 @@
 #include <errno.h>
 #include <signal.h>
 
+ClientArgs arguments;
+time_t begTime;
+
+
 void initializeArgumentsStruct(ClientArgs * arguments) {
     arguments->durationSeconds = -1;
     arguments->fifoName = (char * ) malloc(FIFONAME_MAX_LEN);
@@ -127,7 +131,13 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     flags = prevFlags | O_NONBLOCK;
     fcntl(publicFifoFd, F_SETFL, flags);
 
-    bool readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0;
+    bool readSuccessful;
+    while(!timeHasPassed(arguments.durationSeconds, begTime)) {
+        readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0;
+        if(readSuccessful > 0)
+            break;
+        usleep(200 * 1000); // Wait 200 ms.
+    }
 
     fcntl(publicFifoFd, F_SETFL, prevFlags); // Restore O_BLOCK
     return readSuccessful;
@@ -188,7 +198,6 @@ void * requestServer(void * args) {
 }
 
 int launchRequests(ClientArgs* cliArgs) {
-    time_t begTime;
     int fifoFd = openPublicFifo(cliArgs);
     time(&begTime);
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
@@ -224,7 +233,6 @@ void installSIGHandlers() {
 
 int main(int argc, char* argv[]) {
     installSIGHandlers();
-    ClientArgs arguments;
     
     initializeArgumentsStruct(&arguments);
 
