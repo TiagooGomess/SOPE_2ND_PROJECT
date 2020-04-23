@@ -5,6 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/file.h> 
 #include <limits.h>
@@ -184,20 +185,27 @@ void receiveRequest(int publicFifoFd, ServerArguments* serverArguments) {
     FIFORequest fRequests[MAX_NUM_THREADS];
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
     int tCounter = 0;
+    bool hasClosed = false, canRead;
     
-    while(!timeHasPassed(serverArguments->numSeconds, begTime)) {
-        
-        if(receiveMessage(&fRequests[tCounter], publicFifoFd)) {
+    do {
+        if((canRead = receiveMessage(&fRequests[tCounter], publicFifoFd)) == true) { // We need to make it NON_BLOCK in order for it to close...
             printf("Server message received!\n");
 
             if(!timeHasPassed(serverArguments->numSeconds, begTime))
                 pthread_create(&threads[tCounter], NULL, requestThread, &fRequests[tCounter]);
-            else
+            else {
                 pthread_create(&threads[tCounter], NULL, afterClose, &fRequests[tCounter]);
+
+                // Change FIFO Permissions
+                if(!hasClosed) {
+                    chmod(serverArguments->fifoname, 0400); // Only give read permissions (Server)
+                    hasClosed = true;
+                }    
+            }    
 
             tCounter++;
         }    
-    }  
+    }  while(canRead);
 
     close(publicFifoFd);
     unlink(serverArguments->fifoname);

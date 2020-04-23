@@ -134,17 +134,23 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     bool readSuccessful;
 
     readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer
-    if(!readSuccessful) {
-        printf("HELLO.........................................................\n");
-        
+    if(!readSuccessful) 
         readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer again. If it can't then it givesUp!
-    }    
-    printf("READ SUCCESSFUL: %d\n", readSuccessful);
+   
     fcntl(publicFifoFd, F_SETFL, prevFlags); // Restore O_BLOCK
     return readSuccessful;
 }
 
 void * requestServer(void * args) {
+
+    struct stat fileStat;
+    stat(arguments.fifoName, &fileStat);
+    if(!(fileStat.st_mode & S_IWUSR))
+    {
+        printf("FAILD\n...");
+        return NULL;
+    }
+    
     FIFORequest * fRequest = (FIFORequest *) malloc(sizeof(FIFORequest));  // ALready Freed!
     threadArgs * tArgs = (threadArgs *) args;
 
@@ -161,12 +167,6 @@ void * requestServer(void * args) {
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
     if(sendRequest(fRequest, tArgs->publicFifoFd)) {
         printf("Client write successful!\n");
-    }
-    else {
-        printf("FAILD\n...");
-        unlink(privateFifoName);
-        free(fRequest);
-        return NULL;
     }
 
     int privateFifoFd = open(privateFifoName, O_RDONLY);
@@ -211,7 +211,7 @@ int launchRequests(ClientArgs* cliArgs) {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(25 * 1000); // Sleep for 25 ms between threads...
+        usleep(25  * 1000); // Sleep for 25 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
