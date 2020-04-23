@@ -132,13 +132,14 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     fcntl(publicFifoFd, F_SETFL, flags);
 
     bool readSuccessful;
-    while(!timeHasPassed(arguments.durationSeconds, begTime)) {
-        readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0;
-        if(readSuccessful > 0)
-            break;
-        usleep(200 * 1000); // Wait 200 ms.
-    }
 
+    readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer
+    if(!readSuccessful) {
+        printf("HELLO.........................................................\n");
+        
+        readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer again. If it can't then it givesUp!
+    }    
+    printf("READ SUCCESSFUL: %d\n", readSuccessful);
     fcntl(publicFifoFd, F_SETFL, prevFlags); // Restore O_BLOCK
     return readSuccessful;
 }
@@ -210,7 +211,7 @@ int launchRequests(ClientArgs* cliArgs) {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(150 * 1000); // Sleep for 150 ms between threads...
+        usleep(25 * 1000); // Sleep for 25 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
