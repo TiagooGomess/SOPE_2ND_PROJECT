@@ -129,47 +129,39 @@ void fullFillMessage(FIFORequest * fRequest, bool afterClose) {
 }
 
 void * requestThread(void * args) {
+    printf("...\n");
     FIFORequest * fRequest = (FIFORequest *) args;
 
     // change time(NULL) ???;
     printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
         fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "ENTER");
 
-    /*
-    printf("SeqNum: %d\n", fRequest->seqNum);
-    printf("PID: %d\n", fRequest->pid);
-    printf("TID: %ld\n", fRequest->tid);
-    printf("Duration: %d\n", fRequest->durationSeconds);
-    printf("Place: %d\n", fRequest->place);*/
-
     
     usleep(fRequest->durationSeconds * 1000); // Sleep specified number of ms... Time of bathroom.
+    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+        fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "TIMUP");
 
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
     fullFillMessage(fRequest, false);
 
     int privateFifoFd = open(privateFifoName, O_WRONLY);
-
+    
     if(!sendRequest(fRequest, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
     {
-        printf("GAVUP... %ld\n", pthread_self());
-
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
             -1, pthread_self(), -1, -1, "GAVUP"); // fica -1 ??
     }
-
+    printf("2\n");
+    close(privateFifoFd);
     return NULL;
 
 }
 
 // Requests out of time... 2LATE (could be optimized...)
 void * afterClose(void * args) {
-    //printf("------2LATE-------\n");
+    printf("AFTER\n");
     FIFORequest * fRequest = (FIFORequest *) args;
-
-    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
-        fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "2LATE");
 
     /*
     printf("SeqNum: %d\n", fRequest->seqNum);
@@ -181,12 +173,20 @@ void * afterClose(void * args) {
 
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
+        
     int privateFifoFd = open(privateFifoName, O_WRONLY);
 
     fullFillMessage(fRequest, true);
+    
+    if(sendRequest(fRequest, privateFifoFd))
+    {
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+            fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "2LATE");
+    }
 
-    sendRequest(fRequest, privateFifoFd);
+    printf("3\n");
 
+    close(privateFifoFd);
     return NULL;   
 }
 
@@ -220,7 +220,7 @@ void receiveRequest(int publicFifoFd, ServerArguments* serverArguments) {
             }    
 
             tCounter++;
-        }    
+        }  
     }  while(canRead);
 
     close(publicFifoFd);
