@@ -125,7 +125,7 @@ void fullFillMessage(FIFORequest * fRequest, bool afterClose) {
     if(afterClose)
         fRequest->place = -1;
     else
-        fRequest->place = INT_MAX; // By creating a buffer it results in a critic section (need to use mutexes) - doubtful if should be used in stage 1.
+        fRequest->place = fRequest->seqNum; // By creating a buffer it results in a critic section (need to use mutexes) - doubtful if should be used in stage 1.
 }
 
 void * requestThread(void * args) {
