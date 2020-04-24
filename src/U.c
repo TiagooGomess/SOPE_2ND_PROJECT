@@ -73,7 +73,7 @@ void freeMemory(ClientArgs * arguments, int publicFifoFd) {
 bool timeHasPassed(int durationSeconds, time_t begTime) {
     time_t endTime;
     time(&endTime);
-    printf("%f\n", difftime(endTime, begTime));
+    //printf("%f\n", difftime(endTime, begTime));
     return difftime(endTime, begTime) >= durationSeconds; // in seconds 
 }
 
@@ -114,8 +114,8 @@ bool createPrivateFifo(FIFORequest * fArgs, char * privateFifoName) {
             fprintf(stderr, "Can't create FIFO\n");
         return false;
     }
-    else 
-        printf("FIFO '%s' sucessfully created\n", privateFifoName);
+    else {}
+        //printf("FIFO '%s' sucessfully created\n", privateFifoName);
     
     return true;
 }
@@ -147,7 +147,11 @@ void * requestServer(void * args) {
     stat(arguments.fifoName, &fileStat);
     if(!(fileStat.st_mode & S_IWUSR))
     {
-        printf("FAILD\n...");
+        //printf("FAILD\n...");
+
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
+            -1, pthread_self(), -1, -1, "FAILD"); // fica -1 ??
+
         return NULL;
     }
     
@@ -161,12 +165,15 @@ void * requestServer(void * args) {
     generatePrivateFifoName(fRequest, privateFifoName);
 
     if(createPrivateFifo(fRequest, privateFifoName)) {
-        printf("Private FIFO Successfully created!\n");
+        //printf("Private FIFO Successfully created!\n");
     }  
 
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
     if(sendRequest(fRequest, tArgs->publicFifoFd)) {
-        printf("Client write successful!\n");
+        //printf("Client write successful!\n");
+
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+            fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
     }
 
     int privateFifoFd = open(privateFifoName, O_RDONLY);
@@ -177,18 +184,30 @@ void * requestServer(void * args) {
     // Receive message...   
 
     if(receiveMessage(fRequest, privateFifoFd)) {
+
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+            fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IAMIN");
+
+        /*
         printf("SeqNum: %d\n", fRequest->seqNum);
         printf("PID: %d\n", fRequest->pid);
         printf("TID: %ld\n", fRequest->tid);
         printf("Duration: %d\n", fRequest->durationSeconds);
-        printf("Place: %d\n", fRequest->place);
+        printf("Place: %d\n", fRequest->place);*/
 
         if(fRequest->place == -1) {
-            printf("CLOSD...\n");
+            //printf("CLOSD...\n");
+
+            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
+                -1, pthread_self(), -1, -1, "CLOSD"); // fica -1 ??
+
         }   
     }
     else {
-        printf("FAILD2...%ld\n", pthread_self());
+        //printf("FAILD2...%ld\n", pthread_self());
+
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
+                -1, pthread_self(), -1, -1, "FAILD"); // fica -1 ??
     }
 
     close(privateFifoFd);
