@@ -129,7 +129,8 @@ void fullFillMessage(FIFORequest * fRequest, bool afterClose) {
 }
 
 void * requestThread(void * args) {
-    // pthread_detach(pthread_self());
+    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
+                -1, (long) getpid(), (int) pthread_self(), -1, "RECVD"); // fRequest ainda não é conhecida...... fica -1 ??
     FIFORequest * fRequest = (FIFORequest *) args;
 
     // change time(NULL) ???;
@@ -163,7 +164,8 @@ void * requestThread(void * args) {
 
 // Requests out of time... 2LATE (could be optimized...)
 void * afterClose(void * args) {
-   //  pthread_detach(pthread_self());
+   printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
+                -1, (long) getpid(), (int) pthread_self(), -1, "RECVD"); // fRequest ainda não é conhecida...... fica -1 ??
     FIFORequest * fRequest = (FIFORequest *) args;
 
     char privateFifoName[FIFONAME_MAX_LEN];
@@ -199,10 +201,6 @@ void receiveRequest(int publicFifoFd, ServerArguments* serverArguments) {
     do {
         if((canRead = receiveMessage(&fRequests[tCounter], publicFifoFd)) == true) { // We need to make it NON_BLOCK in order for it to close...
             //printf("Server message received!\n");
-
-            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
-                -1, (long) getpid(), (int) threads[tCounter], -1, "RECVD"); // fRequest ainda não é conhecida...... fica -1 ??
-
 
             if(!timeHasPassed(serverArguments->numSeconds, begTime))
                 pthread_create(&threads[tCounter], NULL, requestThread, &fRequests[tCounter]);

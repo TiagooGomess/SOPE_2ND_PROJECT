@@ -183,8 +183,6 @@ void * requestServer(void * args) {
             fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IAMIN");
 
         if(fRequest->place == -1) {
-            printf("C----------------------------------------LOSD--------------------------------------...\n");
-
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
                 -1, pthread_self(), -1, -1, "CLOSD"); // fica -1 ??
 
