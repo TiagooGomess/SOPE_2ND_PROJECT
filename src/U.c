@@ -128,10 +128,11 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     bool readSuccessful;
 
     readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer
-    usleep(75 * 1000); // Sleep 75 ms...
-    if(!readSuccessful)
-        readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer again
     
+    if(!readSuccessful) {
+        usleep(75 * 1000); // Sleep 75 ms...
+        readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer again
+    }
     return readSuccessful;
 }
 
@@ -187,7 +188,7 @@ void * requestServer(void * args) {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
                 -1, pthread_self(), -1, -1, "CLOSD"); // fica -1 ??
 
-        }   
+        }
     }
 
     close(privateFifoFd);
@@ -248,5 +249,5 @@ int main(int argc, char* argv[]) {
 
     freeMemory(&arguments, publicFifoFd);
 
-    pthread_exit(NULL);
+    exit(0);
 }
