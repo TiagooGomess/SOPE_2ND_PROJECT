@@ -1,5 +1,4 @@
 #include "U.h"
-#include "macros.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,9 +14,9 @@ ClientArgs arguments;
 time_t begTime;
 
 
-void initializeArgumentsStruct(ClientArgs * arguments) {
-    arguments->durationSeconds = -1;
-    arguments->fifoName = (char * ) malloc(FIFONAME_MAX_LEN);
+void initializeArgumentsStruct() {
+    arguments.durationSeconds = -1;
+    arguments.fifoName = (char * ) malloc(FIFONAME_MAX_LEN);
 }
 
 bool checkDurationSeconds(int durationSeconds) {
@@ -28,7 +27,7 @@ bool checkIncrement(int i, int argc) {
     return (i + 1) < argc;
 }
 
-bool checkClientArguments(ClientArgs * arguments, int argc, char *argv[]) {
+bool checkClientArguments(int argc, char *argv[]) {
 
     if(argc != 4) {
         return false;
@@ -40,17 +39,17 @@ bool checkClientArguments(ClientArgs * arguments, int argc, char *argv[]) {
         if (strcmp(argv[i], "-t") == 0)  {
             if (!checkIncrement(i, argc))
                 return false;
-            if(sscanf(argv[++i], "%d", &arguments->durationSeconds) <= 0)
+            if(sscanf(argv[++i], "%d", &arguments.durationSeconds) <= 0)
                 return false;
             definedArgs++;
         }      
         else if (strstr(argv[i], "-") == NULL) {
-            strcpy(arguments->fifoName, argv[i]);
+            strcpy(arguments.fifoName, argv[i]);
             definedArgs++;
         }
     }
 
-    if(!checkDurationSeconds(arguments->durationSeconds))
+    if(!checkDurationSeconds(arguments.durationSeconds))
         return false;
 
     if(definedArgs != 2)
@@ -65,12 +64,12 @@ void generatePublicFifoName(char * fifoName) {
     sprintf(fifoName, "/tmp/%s", tempFifoName);
 }
 
-void freeMemory(ClientArgs * arguments, int publicFifoFd) {
+void freeMemory(int publicFifoFd) {
     close(publicFifoFd);
-    free(arguments->fifoName);   
+    free(arguments.fifoName);   
 }
 
-bool timeHasPassed(int durationSeconds, time_t begTime) {
+bool timeHasPassed(int durationSeconds) {
     time_t endTime;
     time(&endTime);
     //printf("%f\n", difftime(endTime, begTime));
@@ -87,11 +86,12 @@ void fullFillRequest(FIFORequest * fRequest, int seqNum) {
     fRequest->place = -1;
 }
 
-int openPublicFifo(ClientArgs * cliArgs) {
+int openPublicFifo() {
     int fifo_fd;
 
     do {
-        fifo_fd = open(cliArgs->fifoName, O_WRONLY);
+        
+        fifo_fd = open(arguments.fifoName, O_WRONLY);
         
         if(fifo_fd == -1)
             sleep(1);
@@ -130,7 +130,7 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer
     
     if(!readSuccessful) {
-        usleep(75 * 1000); // Sleep 75 ms...
+        usleep(90 * 1000); // Sleep 90 ms...
         readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer again
     }
     return readSuccessful;
@@ -142,8 +142,6 @@ void * requestServer(void * args) {
     stat(arguments.fifoName, &fileStat);
     if(!(fileStat.st_mode & S_IWUSR))
     {
-        //printf("FAILD\n...");
-
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
             -1, pthread_self(), -1, -1, "FAILD"); // fica -1 ??
 
@@ -159,13 +157,10 @@ void * requestServer(void * args) {
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
 
-    if(createPrivateFifo(fRequest, privateFifoName)) {
-        // printf("Private FIFO Successfully created!\n");
-    } 
+    if(createPrivateFifo(fRequest, privateFifoName)) 
 
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
     if(sendRequest(fRequest, tArgs->publicFifoFd)) {
-        //printf("Client write successful!\n");
 
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
             fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
@@ -174,7 +169,6 @@ void * requestServer(void * args) {
     int privateFifoFd = open(privateFifoName, O_RDONLY | O_NONBLOCK); // Open is always successful!
     
     // Need to verify time... In order to see if !timeHasPassed. If so, then it closes privateFIFOS. Can make a do-while cicle (with NON-BLOCK -> use fcntl!)
-
     
     // Receive message...   
     if(receiveMessage(fRequest, privateFifoFd)) {
@@ -185,7 +179,6 @@ void * requestServer(void * args) {
         if(fRequest->place == -1) {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
                 -1, pthread_self(), -1, -1, "CLOSD"); // fica -1 ??
-
         }
     }
 
@@ -196,20 +189,21 @@ void * requestServer(void * args) {
     return NULL;
 }
 
-int launchRequests(ClientArgs* cliArgs) {
-    int fifoFd = openPublicFifo(cliArgs);
+int launchRequests() {
+    int fifoFd = openPublicFifo();
+    printf("%d\n", fifoFd);
     time(&begTime);
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
     threadArgs tArgs[MAX_NUM_THREADS];
     int tCounter = 0;
     
-    while(!timeHasPassed(cliArgs->durationSeconds, begTime))
+    while(!timeHasPassed(arguments.durationSeconds))
     {
         tArgs[tCounter].seqNum = tCounter + 1;
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(25  * 1000); // Sleep for 25 ms between threads...
+        usleep(25 * 1000); // Sleep for 25 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
@@ -233,9 +227,9 @@ void installSIGHandlers() {
 int main(int argc, char* argv[]) {
     installSIGHandlers();
     
-    initializeArgumentsStruct(&arguments);
+    initializeArgumentsStruct();
 
-    if(!checkClientArguments(&arguments, argc, argv)) {
+    if(!checkClientArguments(argc, argv)) {
         fprintf(stderr, "Error capturing Arguments!\n");
         exit(1);
     }
@@ -243,9 +237,9 @@ int main(int argc, char* argv[]) {
     generatePublicFifoName(arguments.fifoName);
 
     // Start request to Server
-    int publicFifoFd = launchRequests(&arguments);
+    int publicFifoFd = launchRequests();
 
-    freeMemory(&arguments, publicFifoFd);
+    freeMemory(publicFifoFd);
 
     exit(0);
 }

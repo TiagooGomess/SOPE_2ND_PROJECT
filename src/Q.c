@@ -129,10 +129,10 @@ void fullFillMessage(FIFORequest * fRequest, bool afterClose) {
 }
 
 void * requestThread(void * args) {
-    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
-                -1, (long) getpid(), (int) pthread_self(), -1, "RECVD"); // fRequest ainda não é conhecida...... fica -1 ??
     FIFORequest * fRequest = (FIFORequest *) args;
-
+    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+        fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "RECVD");
+    
     // change time(NULL) ???;
     printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
         fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "ENTER");
@@ -154,20 +154,20 @@ void * requestThread(void * args) {
     
     if(!sendRequest(fRequest, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
     {
-        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
-            -1, pthread_self(), -1, -1, "GAVUP"); // fica -1 ??
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+            fRequest->pid, fRequest->tid, fRequest->durationSeconds, -1, "GAVUP");
     }
     close(privateFifoFd);
     return NULL;
 
 }
 
-// Requests out of time... 2LATE (could be optimized...)
+// Requests out of time... 2LATE 
 void * afterClose(void * args) {
-   printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
-                -1, (long) getpid(), (int) pthread_self(), -1, "RECVD"); // fRequest ainda não é conhecida...... fica -1 ??
     FIFORequest * fRequest = (FIFORequest *) args;
-
+    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+        fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "RECVD");
+    
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
         
@@ -183,6 +183,11 @@ void * afterClose(void * args) {
     {
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
             fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "2LATE");
+    }
+    else 
+    {
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+            fRequest->pid, fRequest->tid, fRequest->durationSeconds, -1, "GAVUP");
     }
 
     close(privateFifoFd);
@@ -200,10 +205,11 @@ void receiveRequest(int publicFifoFd, ServerArguments* serverArguments) {
     
     do {
         if((canRead = receiveMessage(&fRequests[tCounter], publicFifoFd)) == true) { // We need to make it NON_BLOCK in order for it to close...
-            //printf("Server message received!\n");
 
-            if(!timeHasPassed(serverArguments->numSeconds, begTime))
+            if(!timeHasPassed(serverArguments->numSeconds, begTime)) {
                 pthread_create(&threads[tCounter], NULL, requestThread, &fRequests[tCounter]);
+                usleep(25 * 1000);
+            }    
             else {
                 pthread_create(&threads[tCounter], NULL, afterClose, &fRequests[tCounter]);
 
@@ -216,7 +222,8 @@ void receiveRequest(int publicFifoFd, ServerArguments* serverArguments) {
 
             tCounter++;
         }  
-    }  while(canRead);
+        
+    }  while(canRead || !timeHasPassed(serverArguments->numSeconds, begTime));
 
     close(publicFifoFd);
     unlink(serverArguments->fifoname);
@@ -255,8 +262,7 @@ int main(int argc, char* argv[]) {
         exit(3);
     }
     
-    int publicFifoFd = open(serverArguments.fifoname, O_RDONLY);
-
+    int publicFifoFd = open(serverArguments.fifoname, O_RDONLY | O_NONBLOCK);
     
     receiveRequest(publicFifoFd, &serverArguments);
 
