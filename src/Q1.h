@@ -9,19 +9,19 @@ typedef struct {
     char* fifoname;
 } ServerArguments;
 
-void initializeArgumentsStruct(ServerArguments *serverArguments);
+void initializeArgumentsStruct();
 
-bool checkServerArguments(ServerArguments*  arguments, int argc, char* argv[]);
+bool checkServerArguments(int argc, char* argv[]);
 
 bool checkIncrement(int i, int argc);
 
 void generatePublicFifoName(char * fifoName);
 
-bool createPublicFifo(ServerArguments *arguments);
+bool createPublicFifo();
 
-void freeMemory(ServerArguments * arguments, int publicFifoFd);
+void freeMemory(int publicFifoFd);
 
-bool timeHasPassed(int durationSeconds, time_t begTime);
+bool timeHasPassed(int durationSeconds);
 
 bool receiveMessage(FIFORequest * fArgs, int publicFifoFd);
 
@@ -35,6 +35,6 @@ void * requestThread(void * args);
 
 void * afterClose(void * args);
 
-void receiveRequest(int publicFifoFd, ServerArguments* serverArguments);
+void receiveRequest(int publicFifoFd);
 
 void installSIGHandlers();
