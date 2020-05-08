@@ -130,7 +130,7 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer
     
     if(!readSuccessful) {
-        usleep(90 * 1000); // Sleep 90 ms...
+        usleep(150 * 1000); // Sleep 150 ms...
         readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer again
     }
     return readSuccessful;
@@ -166,7 +166,9 @@ void * requestServer(void * args) {
             fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
     }
 
-    int privateFifoFd = open(privateFifoName, O_RDONLY | O_NONBLOCK); // Open is always successful!
+    int privateFifoFd = -1;
+    while(privateFifoFd == - 1) // Protects against interruptions...
+        privateFifoFd = open(privateFifoName, O_RDONLY); // Waits for Server to open from the other side...
     
     // Need to verify time... In order to see if !timeHasPassed. If so, then it closes privateFIFOS. Can make a do-while cicle (with NON-BLOCK -> use fcntl!)
     

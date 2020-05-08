@@ -79,6 +79,9 @@ bool checkServerArguments(int argc, char *argv[]) {
         return false;
     
     buffer = (int *) malloc(serverArguments.numPlaces * sizeof(int)); // Allocate space for bathroom places!
+    for(int index = 0; index < serverArguments.numPlaces; index++) // Initialize buffer elements with -1 (unoccupied)
+        buffer[index] = -1;
+
     slotsAvailable = serverArguments.numPlaces;
 
     return true;
@@ -289,10 +292,40 @@ int main(int argc, char* argv[]) {
     exit(0);
 }
 
+int receiveSpecMessage(FIFORequest * fArgs, int publicFifoFd) {
+    return read(publicFifoFd, fArgs, sizeof(FIFORequest));
+}
+
+int getAvailablePlace() {
+    for(int index = 0; index < serverArguments.numPlaces; index++) {
+        if(buffer[index] == -1) {
+            buffer[index] = 0; // Occupie place...
+            return index;
+        }    
+    }
+    return -1; // Should never happen...
+}
+
+void fullFillSpecMessage(FIFORequest * fRequest, bool afterClose) {
+    fRequest->pid = getpid();
+    fRequest->tid = pthread_self();
+    fRequest->durationSeconds = fRequest->durationSeconds;
+    
+    if(afterClose) {
+        fRequest->durationSeconds = -1;
+        fRequest->place = -1;
+    }    
+    else {
+        pthread_mutex_lock(&buffer_lock);
+        fRequest->place = getAvailablePlace(); 
+        pthread_mutex_unlock(&buffer_lock);
+    }
+}
+
 void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
     while(true) {
 
-        // First part -> Request can be processed or not
+        // First part -> Request can be processed or not - Queue
         pthread_mutex_lock(&slots_lock);
         while(!(slotsAvailable > 0)) 
             pthread_cond_wait(&slots_cond, &slots_lock);
@@ -300,33 +333,61 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         pthread_mutex_unlock(&slots_lock);
 
         FIFORequest fRequest;
-        while(!receiveMessage(&fRequest, *(int *) args)); // Protects possible interruption!
+        int canRead = true;
+        
+        while(canRead) {
+            canRead = receiveSpecMessage(&fRequest, *(int *) args);
+            if(canRead == -1) // When reading is interrupted, repeat...
+                continue;
+            else if(canRead == 0) { // Means that there are no more requests to be read (0 bytes)
+                pthread_mutex_lock(&slotsInc);
+                slotsAvailable++;
+                pthread_cond_signal(&slots_cond);
+                pthread_mutex_unlock(&slotsInc);
+
+                if(timeHasPassed(serverArguments.numSeconds)) // End-Condition
+                    return NULL;
+            }
+            else // Successful reading!
+                break;
+        } 
             
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "RECVD");
+
+        char privateFifoName[FIFONAME_MAX_LEN];
+        generatePrivateFifoName(&fRequest, privateFifoName);
+        struct stat fileStat;
+        int privateFifoFd = -1;
 
         if(!timeHasPassed(serverArguments.numSeconds)) {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "ENTER");
             usleep(fRequest.durationSeconds * 1000); // Sleep specified number of ms... Time of bathroom.
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "TIMUP");
-        }
-        else
-            printf("2LATE CASE...\n"); // In development...
-        
-        char privateFifoName[FIFONAME_MAX_LEN];
-        generatePrivateFifoName(&fRequest, privateFifoName);
-        fullFillMessage(&fRequest, false);
 
-        struct stat fileStat;
-        int privateFifoFd = -1;
-        while(stat(privateFifoName, &fileStat) != ERROR && privateFifoFd == -1) {
-            privateFifoFd = open(privateFifoName, O_WRONLY | O_NONBLOCK);
-        }    
+            fullFillSpecMessage(&fRequest, false);
+            while(privateFifoFd == -1) // Protects against interruptions!
+                privateFifoFd = open(privateFifoName, O_WRONLY);
+        }
+        else {
+            printf("2LATE CASE...\n"); // In development...
+
+            fullFillSpecMessage(&fRequest, true);
+            while(privateFifoFd == -1) // Protects against interruptions!
+                privateFifoFd = open(privateFifoName, O_WRONLY);
+        }
+
+           
         
         if(!sendRequest(&fRequest, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
         {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
                 fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
         }
+
+        // Place gets available again!
+        pthread_mutex_lock(&buffer_lock);
+        buffer[fRequest.place] = -1;
+        pthread_mutex_unlock(&buffer_lock);
 
         // SlotsAvailable number is increased
         pthread_mutex_lock(&slotsInc);
