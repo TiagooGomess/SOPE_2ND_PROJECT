@@ -82,7 +82,7 @@ void fullFillRequest(FIFORequest * fRequest, int seqNum) {
     fRequest->tid = pthread_self();
 
     unsigned int rSeed = time(NULL);
-    fRequest->durationSeconds = rand_r(&rSeed) % 100; // rand_r is the reentrant version of rand(). Meaning Thread-Safe!
+    fRequest->durationSeconds = rand_r(&rSeed) % 100 + 50; // rand_r is the reentrant version of rand(). Meaning Thread-Safe!
     fRequest->place = -1;
 }
 
@@ -179,7 +179,7 @@ void * requestServer(void * args) {
             fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IAMIN");
 
         if(fRequest->place == -1) {
-            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
+            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
                 -1, pthread_self(), -1, -1, "CLOSD"); // fica -1 ??
         }
     }
@@ -205,7 +205,7 @@ int launchRequests() {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(25 * 1000); // Sleep for 25 ms between threads...
+        usleep(20 * 1000); // Sleep for 20 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
