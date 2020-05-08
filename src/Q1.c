@@ -285,8 +285,11 @@ int main(int argc, char* argv[]) {
     If the specific case (when nplaces and nthreads is specified) is well made, then we shouldn't have problems with that!*/
     if(serverArguments.numPlaces == MAX_NUMBER_OF_PLACES && serverArguments.numThreads == MAX_NUM_THREADS)
         receiveRequest(publicFifoFd);
-    else 
+    else {
+        printf("nPlaces: %d\n", serverArguments.numPlaces);
+        printf("nThreads: %d\n", serverArguments.numThreads);
         receiveSpecRequest(publicFifoFd);    
+    }
 
     freeMemory(publicFifoFd);
     exit(0);
@@ -333,9 +336,9 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         pthread_mutex_unlock(&slots_lock);
 
         FIFORequest fRequest;
-        int canRead = true;
+        int canRead;
         
-        while(canRead) {
+        while(true) {
             canRead = receiveSpecMessage(&fRequest, *(int *) args);
             if(canRead == -1) // When reading is interrupted, repeat...
                 continue;
@@ -356,7 +359,6 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
 
         char privateFifoName[FIFONAME_MAX_LEN];
         generatePrivateFifoName(&fRequest, privateFifoName);
-        struct stat fileStat;
         int privateFifoFd = -1;
 
         if(!timeHasPassed(serverArguments.numSeconds)) {
@@ -367,6 +369,7 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             fullFillSpecMessage(&fRequest, false);
             while(privateFifoFd == -1) // Protects against interruptions!
                 privateFifoFd = open(privateFifoName, O_WRONLY);
+
         }
         else {
             printf("2LATE CASE...\n"); // In development...
@@ -383,20 +386,19 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
                 fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
         }
-
         // Place gets available again!
         pthread_mutex_lock(&buffer_lock);
         buffer[fRequest.place] = -1;
         pthread_mutex_unlock(&buffer_lock);
-
+        
         // SlotsAvailable number is increased
         pthread_mutex_lock(&slotsInc);
         slotsAvailable++;
         pthread_cond_signal(&slots_cond);
         pthread_mutex_unlock(&slotsInc);
-
+        
         close(privateFifoFd);
-        return NULL;
+        
     }
 }
 
