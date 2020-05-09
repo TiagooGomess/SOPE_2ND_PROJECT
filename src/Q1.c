@@ -125,8 +125,11 @@ bool receiveMessage(FIFORequest * fArgs, int publicFifoFd) {
     if (read(publicFifoFd, fArgs, sizeof(FIFORequest)) > 0) {
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fArgs->seqNum, 
             fArgs->pid, fArgs->tid, fArgs->durationSeconds, fArgs->place, "RECVD");
+        return true;
     }
     return false;
+
+    // return read(publicFifoFd, fArgs, sizeof(FIFORequest)) > 0;
 }
 
 void generatePrivateFifoName(FIFORequest * fArgs, char * toReceive) {
@@ -150,11 +153,6 @@ void fullFillMessage(FIFORequest * fRequest, bool afterClose) {
 
 void * requestThread(void * args) {
     FIFORequest * fRequest = (FIFORequest *) args;
-
-    // printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
-    //     fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "RECVD");
-    // (R*) moved to receiveRequest()
-
 
     // change time(NULL) ???;
     printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
@@ -188,8 +186,6 @@ void * requestThread(void * args) {
 // Requests out of time... 2LATE 
 void * afterClose(void * args) {
     FIFORequest * fRequest = (FIFORequest *) args;
-    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
-        fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "RECVD");
     
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
@@ -373,37 +369,10 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         char privateFifoName[FIFONAME_MAX_LEN];
         generatePrivateFifoName(&fRequest, privateFifoName);
 
-        // struct stat fileStat;
-
-    // REMOVED A stat() EQUAL TO THIS ONE v (R*)
-        // if(stat(serverArguments.fifoname, &fileStat) == ERROR) // If PrivateFIFO still exists...
-        // {
-        //     printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
-        //         fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
-
-        //     pthread_mutex_lock(&slots_lock);
-        //     slotsAvailable++;
-        //     pthread_cond_signal(&slots_cond);
-        //     pthread_mutex_unlock(&slots_lock);
-
-        //     continue;
-        // }            // (R*)
-
         int privateFifoFd = open(privateFifoName, O_WRONLY | O_NONBLOCK);
-        
-        // if(privateFifoFd == -1) {
-        //     printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
-        //         fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
 
-        //     pthread_mutex_lock(&slots_lock);
-        //     slotsAvailable++;
-        //     pthread_cond_signal(&slots_cond);
-        //     pthread_mutex_unlock(&slots_lock);
-
-        //     continue;
-        // }     //(R*)
-
-        if(!timeHasPassed(serverArguments.numSeconds))
+        bool endedTime = timeHasPassed(serverArguments.numSeconds);
+        if(!endedTime)
             fullFillSpecMessage(&toSend, false);
          else 
             fullFillSpecMessage(&toSend, true);
@@ -428,7 +397,7 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             continue;
         }       // (R*)
 
-        if(!timeHasPassed(serverArguments.numSeconds)) {
+        if(!endedTime) {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "ENTER");
             usleep(fRequest.durationSeconds * 1000); // Sleep specified number of ms... Time of bathroom.
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "TIMUP");
