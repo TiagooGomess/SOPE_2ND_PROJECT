@@ -116,9 +116,6 @@ bool createPrivateFifo(FIFORequest * fArgs, char * privateFifoName) {
             fprintf(stderr, "Can't create FIFO\n");
         return false;
     }
-    else {}
-        //printf("FIFO '%s' sucessfully created\n", privateFifoName);
-    
     return true;
 }
 
