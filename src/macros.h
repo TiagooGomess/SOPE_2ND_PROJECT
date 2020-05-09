@@ -3,8 +3,6 @@
 #include <unistd.h>
 
 #define FIFONAME_MAX_LEN 128
-#define MAX_NUM_THREADS 47389 // Can't be a much larger number, otherwise the program blows up!
-#define MAX_NUMBER_OF_PLACES 100000
 #define ERROR -1
 
 typedef struct {

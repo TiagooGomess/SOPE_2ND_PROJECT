@@ -11,6 +11,9 @@
 #include <limits.h>
 #include <signal.h>
 
+#define MAX_NUM_THREADS 500 // Can't be a much larger number, otherwise the program blows up!
+#define MAX_NUMBER_OF_PLACES 500
+
 int *buffer;
 int slotsAvailable;
 pthread_cond_t slots_cond = PTHREAD_COND_INITIALIZER;
@@ -121,6 +124,7 @@ bool timeHasPassed(int durationSeconds) {
     return difftime(endTime, begTime) >= durationSeconds; // in seconds 
 }
 
+<<<<<<< HEAD
 bool receiveMessage(FIFORequest * fArgs, int publicFifoFd) {
     if (read(publicFifoFd, fArgs, sizeof(FIFORequest)) > 0) {
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fArgs->seqNum, 
@@ -132,6 +136,8 @@ bool receiveMessage(FIFORequest * fArgs, int publicFifoFd) {
     // return read(publicFifoFd, fArgs, sizeof(FIFORequest)) > 0;
 }
 
+=======
+>>>>>>> 2b5fe7180aaef441ddbd7edcc528128c198c11ba
 void generatePrivateFifoName(FIFORequest * fArgs, char * toReceive) {
     sprintf(toReceive, "/tmp/%d.%ld", fArgs->pid, fArgs->tid);
 }
@@ -140,6 +146,7 @@ bool sendRequest(FIFORequest * fRequest, int privateFifoFd) {
     return write(privateFifoFd, fRequest, sizeof(FIFORequest)) > 0;
 }
 
+<<<<<<< HEAD
 void fullFillMessage(FIFORequest * fRequest, bool afterClose) {
     fRequest->pid = getpid();
     fRequest->tid = pthread_self();
@@ -250,6 +257,8 @@ void receiveRequest(int publicFifoFd) {
     }
 }
 
+=======
+>>>>>>> 2b5fe7180aaef441ddbd7edcc528128c198c11ba
 void installSIGHandlers() {
     struct sigaction action;
 
@@ -282,16 +291,9 @@ int main(int argc, char* argv[]) {
     
     int publicFifoFd = open(serverArguments.fifoname, O_RDONLY | O_NONBLOCK);
     
-    /* TEMPORARY SOLUTION -> (when nplaces and nthreads is not specified...) 
-    The other case that stands for further evaluation is when one of those parameters is not specified (which means infinite)
-    If the specific case (when nplaces and nthreads is specified) is well made, then we shouldn't have problems with that!*/
-    if(serverArguments.numPlaces == MAX_NUMBER_OF_PLACES && serverArguments.numThreads == MAX_NUM_THREADS)
-        receiveRequest(publicFifoFd);
-    else {
-        printf("nPlaces: %d\n", serverArguments.numPlaces);
-        printf("nThreads: %d\n", serverArguments.numThreads);
-        receiveSpecRequest(publicFifoFd);    
-    }
+    printf("nPlaces: %d\n", serverArguments.numPlaces);
+    printf("nThreads: %d\n", serverArguments.numThreads);
+    receiveSpecRequest(publicFifoFd);    
 
     freeMemory(publicFifoFd);
     exit(0);
@@ -370,6 +372,18 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         generatePrivateFifoName(&fRequest, privateFifoName);
 
         int privateFifoFd = open(privateFifoName, O_WRONLY | O_NONBLOCK);
+<<<<<<< HEAD
+=======
+        
+        if(privateFifoFd == -1) {
+            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
+                fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
+
+            pthread_mutex_lock(&slots_lock);
+            slotsAvailable++;
+            pthread_cond_signal(&slots_cond);
+            pthread_mutex_unlock(&slots_lock);
+>>>>>>> 2b5fe7180aaef441ddbd7edcc528128c198c11ba
 
         bool endedTime = timeHasPassed(serverArguments.numSeconds);
         if(!endedTime)
@@ -377,6 +391,17 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
          else 
             fullFillSpecMessage(&toSend, true);
 
+<<<<<<< HEAD
+=======
+        bool endedTime = timeHasPassed(serverArguments.numSeconds);
+        if(!endedTime) {
+            fullFillSpecMessage(&toSend, false);
+        }
+        else {
+            fullFillSpecMessage(&toSend, true);
+        }
+
+>>>>>>> 2b5fe7180aaef441ddbd7edcc528128c198c11ba
         if(!sendRequest(&toSend, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
         {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
@@ -386,7 +411,11 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             pthread_mutex_lock(&buffer_lock);
             buffer[toSend.place] = -1;
             pthread_mutex_unlock(&buffer_lock);
+<<<<<<< HEAD
                 
+=======
+            
+>>>>>>> 2b5fe7180aaef441ddbd7edcc528128c198c11ba
             // SlotsAvailable number is increased
             pthread_mutex_lock(&slots_lock);
             slotsAvailable++;
@@ -394,8 +423,14 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             pthread_mutex_unlock(&slots_lock);
 
             close(privateFifoFd);
+<<<<<<< HEAD
             continue;
         }       // (R*)
+=======
+
+            continue;
+        }
+>>>>>>> 2b5fe7180aaef441ddbd7edcc528128c198c11ba
 
         if(!endedTime) {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "ENTER");
@@ -406,7 +441,6 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         else {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
                 fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "2LATE");
-
         }
 
 

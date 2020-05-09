@@ -13,6 +13,8 @@
 ClientArgs arguments;
 time_t begTime;
 
+#define MAX_NUM_THREADS 47389 // Can't be a much larger number, otherwise the program blows up!
+#define MAX_NUMBER_OF_PLACES 100000
 
 void initializeArgumentsStruct() {
     arguments.durationSeconds = -1;
@@ -150,10 +152,10 @@ void * requestServer(void * args) {
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
 
-    if(createPrivateFifo(fRequest, privateFifoName)) 
+    createPrivateFifo(fRequest, privateFifoName); 
 
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
-    while(!sendRequest(fRequest, tArgs->publicFifoFd)) { printf("Hello\n");}
+    while(!sendRequest(fRequest, tArgs->publicFifoFd));
     printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
         fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
 
