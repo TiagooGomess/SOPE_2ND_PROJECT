@@ -82,7 +82,7 @@ void fullFillRequest(FIFORequest * fRequest, int seqNum) {
     fRequest->tid = pthread_self();
 
     unsigned int rSeed = time(NULL);
-    fRequest->durationSeconds = rand_r(&rSeed) % 100 + 50; // rand_r is the reentrant version of rand(). Meaning Thread-Safe!
+    fRequest->durationSeconds = rand_r(&rSeed) % 100 + 200; // rand_r is the reentrant version of rand(). Meaning Thread-Safe!
     fRequest->place = -1;
 }
 
@@ -128,25 +128,18 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     bool readSuccessful;
 
     readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer
-    
     if(!readSuccessful) {
-        usleep(150 * 1000); // Sleep 150 ms...
-        readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer again
+        for(int i = 0; i < 10; i++) {
+            usleep(100 * 1000); // Sleep 150ms
+            readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer AGAIN
+            if(readSuccessful)
+                break;
+        }
     }
     return readSuccessful;
 }
 
 void * requestServer(void * args) {
-
-    struct stat fileStat;
-    stat(arguments.fifoName, &fileStat);
-    if(!(fileStat.st_mode & S_IWUSR))
-    {
-        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), -1, 
-            -1, pthread_self(), -1, -1, "FAILD"); // fica -1 ??
-
-        return NULL;
-    }
     
     FIFORequest * fRequest = (FIFORequest *) malloc(sizeof(FIFORequest));  // ALready Freed!
     threadArgs * tArgs = (threadArgs *) args;
@@ -166,9 +159,7 @@ void * requestServer(void * args) {
             fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
     }
 
-    int privateFifoFd = -1;
-    while(privateFifoFd == - 1) // Protects against interruptions...
-        privateFifoFd = open(privateFifoName, O_RDONLY); // Waits for Server to open from the other side...
+    int privateFifoFd = open(privateFifoName, O_RDONLY | O_NONBLOCK); // Never fails
     
     // Need to verify time... In order to see if !timeHasPassed. If so, then it closes privateFIFOS. Can make a do-while cicle (with NON-BLOCK -> use fcntl!)
     
@@ -182,7 +173,13 @@ void * requestServer(void * args) {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
                 -1, pthread_self(), -1, -1, "CLOSD"); // fica -1 ??
         }
+    } 
+    else // Client can't receive server's answer.
+    {
+        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+            -1, pthread_self(), -1, -1, "FAILD"); // fica -1 ??
     }
+    
 
     close(privateFifoFd);
     unlink(privateFifoName);
@@ -205,7 +202,7 @@ int launchRequests() {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(20 * 1000); // Sleep for 20 ms between threads...
+        usleep(15 * 1000); // Sleep for 15 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {

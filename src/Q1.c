@@ -359,35 +359,72 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         } 
 
         toSend = fRequest;
-        fullFillSpecMessage(&toSend, false);
         printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "RECVD");
 
         char privateFifoName[FIFONAME_MAX_LEN];
         generatePrivateFifoName(&fRequest, privateFifoName);
-        int privateFifoFd = -1;
+
+        struct stat fileStat;
+        stat(serverArguments.fifoname, &fileStat);
+        if(stat(serverArguments.fifoname, &fileStat) == ERROR) // If PrivateFIFO still exists...
+        {
+            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
+                fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
+
+            pthread_mutex_lock(&slots_lock);
+            slotsAvailable++;
+            pthread_cond_signal(&slots_cond);
+            pthread_mutex_unlock(&slots_lock);
+            continue;
+        }
+
+        int privateFifoFd = open(privateFifoName, O_WRONLY | O_NONBLOCK);
+        
+        if(privateFifoFd == -1) {
+            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
+                fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
+
+            pthread_mutex_lock(&slots_lock);
+            slotsAvailable++;
+            pthread_cond_signal(&slots_cond);
+            pthread_mutex_unlock(&slots_lock);
+            continue;
+        }
 
         if(!timeHasPassed(serverArguments.numSeconds)) {
+            fullFillSpecMessage(&toSend, false);
+            if(!sendRequest(&toSend, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
+            {
+                printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
+                    fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
+
+                // Place gets available again!
+                pthread_mutex_lock(&buffer_lock);
+                buffer[toSend.place] = -1;
+                // printf("Buf[%d] = %d\n", fRequest.place, -1);
+                pthread_mutex_unlock(&buffer_lock);
+                
+                // SlotsAvailable number is increased
+                pthread_mutex_lock(&slots_lock);
+                slotsAvailable++;
+                pthread_cond_signal(&slots_cond);
+                pthread_mutex_unlock(&slots_lock);
+            }
+
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "ENTER");
             usleep(fRequest.durationSeconds * 1000); // Sleep specified number of ms... Time of bathroom.
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "TIMUP");
 
-            while(privateFifoFd == -1) { // Protects against interruptions! 
-                privateFifoFd = open(privateFifoName, O_WRONLY);
-            }
         }
         else {
+            fullFillSpecMessage(&toSend, true);
             printf("2LATE CASE...\n"); // In development...
 
             /*fullFillSpecMessage(&fRequest, true);
             while(privateFifoFd == -1) // Protects against interruptions!
                 privateFifoFd = open(privateFifoName, O_WRONLY);*/
         }
-        
-        if(!sendRequest(&toSend, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
-        {
-            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
-                fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
-        }
+
 
         // Place gets available again!
         pthread_mutex_lock(&buffer_lock);
@@ -417,7 +454,6 @@ void receiveSpecRequest(int publicFifoFd) {
     }
 
     sleep(serverArguments.numSeconds);
-    chmod(serverArguments.fifoname, 0400); // Only give read permissions (Server)
 
     close(publicFifoFd);
     unlink(serverArguments.fifoname);
