@@ -153,11 +153,10 @@ void * requestServer(void * args) {
     if(createPrivateFifo(fRequest, privateFifoName)) 
 
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
-    if(sendRequest(fRequest, tArgs->publicFifoFd)) {
+    while(!sendRequest(fRequest, tArgs->publicFifoFd)) { printf("Hello\n");}
+    printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+        fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
 
-        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
-            fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
-    }
 
     int privateFifoFd = open(privateFifoName, O_RDONLY | O_NONBLOCK); // Never fails
     
@@ -166,10 +165,11 @@ void * requestServer(void * args) {
     // Receive message...   
     if(receiveMessage(fRequest, privateFifoFd)) {
 
-        printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
-            fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IAMIN");
-
-        if(fRequest->place == -1) {
+        if(fRequest->place != -1) {
+            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
+                fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IAMIN");
+        }        
+        else {
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
                 -1, pthread_self(), -1, -1, "CLOSD"); // fica -1 ??
         }
@@ -202,7 +202,7 @@ int launchRequests() {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(15 * 1000); // Sleep for 15 ms between threads...
+        usleep(25 * 1000); // Sleep for 25 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {

@@ -111,7 +111,7 @@ bool createPublicFifo() {
 
 void freeMemory(int publicFifoFd) {
     free(serverArguments.fifoname);
-    free(buffer);    
+    // free(buffer);    
 }
 
 bool timeHasPassed(int durationSeconds) {
@@ -342,8 +342,9 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         
         while(true) {
             canRead = receiveSpecMessage(&fRequest, *(int *) args);
-            if(canRead == -1) // When reading is interrupted, repeat...
+            if(canRead == -1) { // When reading is interrupted, repeat...
                 continue;
+            }    
             else if(canRead == 0) { // Means that there are no more requests to be read (0 bytes)
                 if(timeHasPassed(serverArguments.numSeconds)) { // End-Condition
                     pthread_mutex_lock(&slots_lock);
@@ -375,6 +376,7 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             slotsAvailable++;
             pthread_cond_signal(&slots_cond);
             pthread_mutex_unlock(&slots_lock);
+
             continue;
         }
 
@@ -388,6 +390,7 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             slotsAvailable++;
             pthread_cond_signal(&slots_cond);
             pthread_mutex_unlock(&slots_lock);
+
             continue;
         }
 
@@ -401,7 +404,6 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
                 // Place gets available again!
                 pthread_mutex_lock(&buffer_lock);
                 buffer[toSend.place] = -1;
-                // printf("Buf[%d] = %d\n", fRequest.place, -1);
                 pthread_mutex_unlock(&buffer_lock);
                 
                 // SlotsAvailable number is increased
@@ -409,6 +411,10 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
                 slotsAvailable++;
                 pthread_cond_signal(&slots_cond);
                 pthread_mutex_unlock(&slots_lock);
+
+                close(privateFifoFd);
+
+                continue;
             }
 
             printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "ENTER");
@@ -418,18 +424,36 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         }
         else {
             fullFillSpecMessage(&toSend, true);
-            printf("2LATE CASE...\n"); // In development...
+            if(!sendRequest(&toSend, privateFifoFd)) // Server can't answer user... SIGPIPE (GAVUP!) 
+            {
+                printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
+                    fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
 
-            /*fullFillSpecMessage(&fRequest, true);
-            while(privateFifoFd == -1) // Protects against interruptions!
-                privateFifoFd = open(privateFifoName, O_WRONLY);*/
+                // Place gets available again!
+                pthread_mutex_lock(&buffer_lock);
+                buffer[toSend.place] = -1;
+                pthread_mutex_unlock(&buffer_lock);
+                
+                // SlotsAvailable number is increased
+                pthread_mutex_lock(&slots_lock);
+                slotsAvailable++;
+                pthread_cond_signal(&slots_cond);
+                pthread_mutex_unlock(&slots_lock);
+
+                close(privateFifoFd);
+
+                continue;
+            }
+
+            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
+                fRequest.pid, fRequest.tid, fRequest.durationSeconds, fRequest.place, "2LATE");
+
         }
 
 
         // Place gets available again!
         pthread_mutex_lock(&buffer_lock);
         buffer[toSend.place] = -1;
-        // printf("Buf[%d] = %d\n", fRequest.place, -1);
         pthread_mutex_unlock(&buffer_lock);
         
         // SlotsAvailable number is increased
@@ -455,10 +479,10 @@ void receiveSpecRequest(int publicFifoFd) {
 
     sleep(serverArguments.numSeconds);
 
-    close(publicFifoFd);
-    unlink(serverArguments.fifoname);
-
     for(int tInd = 0; tInd < tCounter; tInd++) { 
         pthread_join(threads[tInd], NULL); // We don't really need to wait for threads, its just because of stdout.
     }
+
+    close(publicFifoFd);
+    unlink(serverArguments.fifoname);
 }
