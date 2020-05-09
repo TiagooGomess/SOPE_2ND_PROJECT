@@ -152,7 +152,7 @@ void * requestServer(void * args) {
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
 
-    if(createPrivateFifo(fRequest, privateFifoName)) 
+    createPrivateFifo(fRequest, privateFifoName); 
 
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
     while(!sendRequest(fRequest, tArgs->publicFifoFd));
