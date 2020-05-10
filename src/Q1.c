@@ -205,6 +205,19 @@ void fullFillSpecMessage(FIFORequest * fRequest, bool afterClose) {
     }
 }
 
+void releaseSlot() {
+    pthread_mutex_lock(&slots_lock);
+    slotsAvailable++;
+    pthread_cond_signal(&slots_cond);
+    pthread_mutex_unlock(&slots_lock);
+}
+
+void releasePlace(FIFORequest* fRequest) {
+    pthread_mutex_lock(&buffer_lock);
+    buffer[fRequest->place] = -1;
+    pthread_mutex_unlock(&buffer_lock);
+}
+
 void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
     FIFORequest fRequest, toSend;
     int canRead;
@@ -225,10 +238,7 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             }    
             else if(canRead == 0) { // Means that there are no more requests to be read (0 bytes)
                 if(timeHasPassed(serverArguments.numSeconds)) { // End-Condition
-                    pthread_mutex_lock(&slots_lock);
-                    slotsAvailable++;
-                    pthread_cond_signal(&slots_cond);
-                    pthread_mutex_unlock(&slots_lock);
+                    releaseSlot();
                 
                     return NULL;
                 }
@@ -244,18 +254,6 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         generatePrivateFifoName(&fRequest, privateFifoName);
 
         int privateFifoFd = open(privateFifoName, O_WRONLY | O_NONBLOCK);
-        
-        if(privateFifoFd == -1) {
-            printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest.seqNum, 
-                fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
-
-            pthread_mutex_lock(&slots_lock);
-            slotsAvailable++;
-            pthread_cond_signal(&slots_cond);
-            pthread_mutex_unlock(&slots_lock);
-
-            continue;
-        }
 
         bool endedTime = timeHasPassed(serverArguments.numSeconds);
         if(!endedTime) {
@@ -271,15 +269,10 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
                 fRequest.pid, fRequest.tid, fRequest.durationSeconds, -1, "GAVUP");
 
             // Place gets available again!
-            pthread_mutex_lock(&buffer_lock);
-            buffer[toSend.place] = -1;
-            pthread_mutex_unlock(&buffer_lock);
+            releasePlace(&toSend);
             
             // SlotsAvailable number is increased
-            pthread_mutex_lock(&slots_lock);
-            slotsAvailable++;
-            pthread_cond_signal(&slots_cond);
-            pthread_mutex_unlock(&slots_lock);
+            releaseSlot();
 
             close(privateFifoFd);
 
@@ -299,15 +292,10 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
 
 
         // Place gets available again!
-        pthread_mutex_lock(&buffer_lock);
-        buffer[toSend.place] = -1;
-        pthread_mutex_unlock(&buffer_lock);
+        releasePlace(&toSend);
         
         // SlotsAvailable number is increased
-        pthread_mutex_lock(&slots_lock);
-        slotsAvailable++;
-        pthread_cond_signal(&slots_cond);
-        pthread_mutex_unlock(&slots_lock);
+        releaseSlot();
         
         close(privateFifoFd);
         
