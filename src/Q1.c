@@ -212,9 +212,9 @@ void releaseSlot() {
     pthread_mutex_unlock(&slots_lock);
 }
 
-void releasePlace(FIFORequest* toSend) {            
+void releasePlace(FIFORequest* fRequest) {
     pthread_mutex_lock(&buffer_lock);
-    buffer[toSend->place] = -1;
+    buffer[fRequest->place] = -1;
     pthread_mutex_unlock(&buffer_lock);
 }
 
@@ -239,6 +239,7 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
             else if(canRead == 0) { // Means that there are no more requests to be read (0 bytes)
                 if(timeHasPassed(serverArguments.numSeconds)) { // End-Condition
                     releaseSlot();
+                
                     return NULL;
                 }
 

@@ -84,7 +84,7 @@ void fullFillRequest(FIFORequest * fRequest, int seqNum) {
     fRequest->tid = pthread_self();
 
     unsigned int rSeed = time(NULL);
-    fRequest->durationSeconds = rand_r(&rSeed) % 100 + 200; // rand_r is the reentrant version of rand(). Meaning Thread-Safe!
+    fRequest->durationSeconds = rand_r(&rSeed) % 100 + 75; // rand_r is the reentrant version of rand(). Meaning Thread-Safe!
     fRequest->place = -1;
 }
 
@@ -129,7 +129,7 @@ bool receiveMessage(FIFORequest * fRequest, int publicFifoFd) {
     readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer
     if(!readSuccessful) {
         for(int i = 0; i < 10; i++) {
-            usleep(100 * 1000); // Sleep 150ms
+            usleep(150 * 1000); // Sleep 150ms
             readSuccessful = read(publicFifoFd, fRequest, sizeof(FIFORequest)) > 0; // Tries to read answer AGAIN
             if(readSuccessful)
                 break;
@@ -149,18 +149,16 @@ void * requestServer(void * args) {
     char privateFifoName[FIFONAME_MAX_LEN];
     generatePrivateFifoName(fRequest, privateFifoName);
 
-    createPrivateFifo(fRequest, privateFifoName); 
+    createPrivateFifo(fRequest, privateFifoName);
 
     // Send Message... (SEE SIGPIPE CASE!) -> FAILD!
     while(!sendRequest(fRequest, tArgs->publicFifoFd));
     printf("%ld ; %d; %d; %ld; %d; %d; %s\n", time(NULL), fRequest->seqNum, 
         fRequest->pid, fRequest->tid, fRequest->durationSeconds, fRequest->place, "IWANT");
-
-
-    int privateFifoFd = open(privateFifoName, O_RDONLY | O_NONBLOCK); // Never fails
     
     // Need to verify time... In order to see if !timeHasPassed. If so, then it closes privateFIFOS. Can make a do-while cicle (with NON-BLOCK -> use fcntl!)
-    
+    int privateFifoFd = open(privateFifoName, O_RDONLY | O_NONBLOCK); // Never fails 
+
     // Receive message...   
     if(receiveMessage(fRequest, privateFifoFd)) {
 
@@ -189,7 +187,6 @@ void * requestServer(void * args) {
 
 int launchRequests() {
     int fifoFd = openPublicFifo();
-    printf("%d\n", fifoFd);
     time(&begTime);
     pthread_t threads[MAX_NUM_THREADS]; // Set as an infinite number...
     threadArgs tArgs[MAX_NUM_THREADS];
@@ -201,7 +198,7 @@ int launchRequests() {
         tArgs[tCounter].publicFifoFd = fifoFd;
         pthread_create(&threads[tCounter], NULL, requestServer, &tArgs[tCounter]);
         tCounter++;
-        usleep(25 * 1000); // Sleep for 25 ms between threads...
+        usleep(20 * 1000); // Sleep for 20 ms between threads...
     }  
 
     for(int tInd = 0; tInd < tCounter; tInd++) {
