@@ -1,4 +1,4 @@
-#include "Q1.h"
+#include "Q2.h"
 #include "macros.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,10 +11,10 @@
 #include <limits.h>
 #include <signal.h>
 
-#define MAX_NUM_THREADS 500 // Can't be a much larger number, otherwise the program blows up!
+#define MAX_NUM_THREADS 250 // Can't be a much larger number, otherwise the program blows up!
 #define MAX_NUMBER_OF_PLACES 500
 
-int *buffer;
+int buffer[MAX_NUMBER_OF_PLACES];
 int slotsAvailable;
 pthread_cond_t slots_cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t slots_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -79,8 +79,12 @@ bool checkServerArguments(int argc, char *argv[]) {
 
     if(definedArgs != 2)
         return false;
-    
-    buffer = (int *) malloc(serverArguments.numPlaces * sizeof(int)); // Allocate space for bathroom places!
+
+    if(serverArguments.numPlaces > MAX_NUMBER_OF_PLACES)
+        serverArguments.numPlaces = MAX_NUMBER_OF_PLACES;
+    if(serverArguments.numThreads > MAX_NUM_THREADS)
+        serverArguments.numThreads = MAX_NUM_THREADS;
+
     for(int index = 0; index < serverArguments.numPlaces; index++) // Initialize buffer elements with -1 (unoccupied)
         buffer[index] = -1;
 
@@ -114,7 +118,6 @@ bool createPublicFifo() {
 
 void freeMemory(int publicFifoFd) {
     free(serverArguments.fifoname);
-    free(buffer);    
 }
 
 bool timeHasPassed(int durationSeconds) {
@@ -167,7 +170,7 @@ int main(int argc, char* argv[]) {
     printf("nPlaces: %d\n", serverArguments.numPlaces);
     printf("nThreads: %d\n", serverArguments.numThreads);
     receiveSpecRequest(publicFifoFd);    
-
+    
     freeMemory(publicFifoFd);
     exit(0);
 }
@@ -177,16 +180,15 @@ int receiveSpecMessage(FIFORequest * fArgs, int publicFifoFd) {
 }
 
 int getAvailablePlace() {
-    for(int index = 0; index < serverArguments.numPlaces; index++) {
+    int index = 0;
+    while(true) {
         if(buffer[index] == -1) {
-            printf("SELECTED INDEX: %d\n", index);
-            buffer[index] = 0; // Occupie place...
-            // printf("Buf[%d] = %d\n", index, 0);
+            // printf("SELECTED INDEX: %d\n", index);
+            buffer[index] = 0; // Occupied place...
             return index;
-        }    
+        }
+        index = (index + 1) % serverArguments.numPlaces;
     }
-    printf("------------------ IF YOU EVER SEE THIS IS BECAUSE SOMETHING'S WRONG! ------------------\n");
-    return -1; // Should never happen...
 }
 
 void fullFillSpecMessage(FIFORequest * fRequest, bool afterClose) {
@@ -295,7 +297,7 @@ void * requestSpecThread(void * args) { // Argument passed is publicFifoFd
         releaseSlot();
         
         close(privateFifoFd);
-        
+   
     }
 }
 

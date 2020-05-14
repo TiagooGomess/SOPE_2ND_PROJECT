@@ -1,4 +1,4 @@
-objects = U1 Q1
+objects = U2 Q2
 all:$(objects)
 CC = gcc
 CFLAGS = -Wall -pthread
@@ -7,10 +7,10 @@ DEPS =
 %.objects: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-Q1: Q1.o 
-	$(CC) -o Q1 Q1.o -lrt -lpthread
-U1: U1.o
-	$(CC) -o U1 U1.o -lrt -lpthread
+Q2: Q2.o 
+	$(CC) -o Q2 Q2.o -lrt -lpthread
+U2: U2.o
+	$(CC) -o U2 U2.o -lrt -lpthread
 
 
 .PHONY: clean
